@@ -13,8 +13,12 @@ class CurrencyApiService:
     def __fetch_latest_currency_dates(self):
         recent_date = CurrencySchedulerMetadata.get(
             hash_key=constants.LATEST_SCHEDULER_EXECUTION).config_value["parsed_date"]
+        recent_date_dt = datetime.strptime(
+            recent_date, constants.DATE_TIME_FORMAT)
+        # shifting expected date to previous working day (MON-FRI)
+        shift = timedelta(days=max(1, (recent_date_dt.weekday() + 6) % 7 - 3))
         previous_date_dt = datetime.strptime(
-            recent_date, constants.DATE_TIME_FORMAT)-timedelta(days=1)
+            recent_date, constants.DATE_TIME_FORMAT)-shift
         previous_date = datetime.strftime(
             previous_date_dt, constants.DATE_TIME_FORMAT)
         return previous_date, recent_date
@@ -34,6 +38,7 @@ class CurrencyApiService:
             if record.currency_name in previous_records_map:
                 res["change"] = record.currency_value - \
                     previous_records_map[record.currency_name]
+                res["change"] = round(res["change"], 4)
             final_res[record.currency_name] = res
         return final_res
 
