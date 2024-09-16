@@ -4,9 +4,11 @@ The Currency Tracking Service relies on European Central Bank Data (https://www.
 ## Resources Used
 
 - AWS Lambda
+- AWS SQS
+- AWS API GATEWAY
+- AWS DynamoDB
+- AWS Cloudwatch Event
 - AWS SNS
-- AWS S3 Bucket
-- AWS VPC
 
 ## Arch Diagram
 ![alt text](https://github.com/NarendrenSaravanan/currency-tracker/blob/main/arch_diagram.png?raw=true)
