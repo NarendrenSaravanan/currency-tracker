@@ -1,0 +1,9 @@
+# removed boto3 module from requirements.txt as it is pre-installed in aws lambda - saves deployment package size
+pynamodb==6.0.1
+beautifulsoup4==4.12.3
+requests==2.32.3
+pytz==2024.2
+# unit test deps
+#boto3
+#moto==5.0.14
+#pytest==8.3.3

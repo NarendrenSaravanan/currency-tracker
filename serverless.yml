@@ -1,0 +1,125 @@
+service: currency-tracker
+
+frameworkVersion: '3'
+
+
+provider:
+  name: aws
+  runtime: python3.12
+  stage: ${opt:stage, 'dev'}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+        - dynamodb:BatchGetItem
+        - dynamodb:BatchWriteItem
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+      Resource: "*"
+  environment:
+    LOGGING_LEVEL: INFO
+    EURO_BANK_CURRENCY_URL: https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html
+    IGNORE_EXPECTED_DATE_CHECK: true
+    CURRENCY_TRACKING_SQS_URL: { Ref: CurrencyTrackingSQS }
+functions:
+  scheduler:
+    handler: handlers/scheduler-handler.lambda_handler
+    timeout: 300 # 5 mins
+    events:
+      # Invoke Lambda function every minute
+      #- schedule: rate(1 minute)
+      - schedule: cron(30 14 * * MON-FRI *)
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - CurrencyTrackingSQS
+              - Arn
+          batchSize: 1
+  api:
+    handler: handlers/api-handler.lambda_handler
+    events:
+      - httpApi:
+          method: GET
+          path: /currency/exchange-rates
+          cors: true
+          private: true
+
+# Insert raw CloudFormation (resources, outputs…) in the deployed template
+resources:
+  Resources:
+    # DynamoDB
+    CurrencyRates:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: currency-rates
+        AttributeDefinitions:
+          - AttributeName: currency_name
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: S
+        KeySchema:
+          - AttributeName: date
+            KeyType: HASH
+          - AttributeName: currency_name
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+    CurrencySchedulerMetadata:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: currency-scheduler-metadata
+        AttributeDefinitions:
+          - AttributeName: config_key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: config_key
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+    # SQS
+    CurrencyTrackingSQS: 
+      Type: AWS::SQS::Queue
+      Properties: 
+        MessageRetentionPeriod: 23400 # message is retained for next 6.5 hrs
+        VisibilityTimeout: 3600 # retry every 1 hr
+        RedrivePolicy: 
+          deadLetterTargetArn: 
+            Fn::GetAtt: 
+              - "CurrencyTrackingDLQ"
+              - "Arn"
+          maxReceiveCount: 5
+    CurrencyTrackingDLQ: 
+      Type: AWS::SQS::Queue
+    # SNS
+    CurrencyTrackingFailuresSNS:
+      Type: AWS::SNS::Topic
+      Properties:
+        Subscription:
+          - Endpoint: 
+              Fn::GetAtt:
+                - "CurrencyTrackingDLQ"
+                - "Arn"
+            Protocol: "sqs"
+        TopicName: "CurrencyTrackingFailures"
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+
+plugins:
+  - serverless-python-requirements
+
+package:
+  individually: true
+  exclude:
+    - .vscode
+    - node_modules/**
+    - .serverless/**
+    - .gitignore
+    - package.json
+    - package-lock.json
+    - README.md
+    - test/**
