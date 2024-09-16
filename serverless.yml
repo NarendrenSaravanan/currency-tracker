@@ -33,7 +33,7 @@ functions:
     events:
       # Invoke Lambda function every minute
       #- schedule: rate(1 minute)
-      - schedule: cron(30 14 * * MON-FRI *)
+      - schedule: cron(30 14 * * ? *)
       - sqs:
           arn:
             Fn::GetAtt:
